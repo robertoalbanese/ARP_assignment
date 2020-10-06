@@ -1,0 +1,2 @@
+IMPLEMENTA CALCOLO NEW TOKEN.
+Scrivere howto per invio di segnali
