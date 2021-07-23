@@ -12,6 +12,7 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <math.h>
 #include <netdb.h>
 
 #define max(a, b) \
@@ -37,7 +38,8 @@ void error(const char *msg)
 	exit(-1);
 }
 
-void readConfFile(char *ip, char *port_n, char *port_p, int *rf)
+// Read the configuration file info
+void readConfFile(char *ip, char *port, int *wt, int *rf)
 {
 	fp = fopen("ConfigurationFile.txt", "r");
 
@@ -45,13 +47,13 @@ void readConfFile(char *ip, char *port_n, char *port_p, int *rf)
 		error("Failed to open ConfigurationFile");
 
 	fscanf(fp, "%s", ip);
-	fscanf(fp, "%s", port_n);
-	fscanf(fp, "%s", port_p);
+	fscanf(fp, "%s", port);
+	fscanf(fp, "%d", wt);
 	fscanf(fp, "%d", rf);
 
 	printf("IP : %s\n", ip);
-	printf("Port_N : %s\n", port_n);
-	printf("Port_P : %s\n", port_p);
+	printf("Port : %s\n", port);
+	printf("Waiting time : %d\n", wt);
 	printf("RF : %d\n", *rf);
 
 	fclose(fp);
@@ -82,9 +84,9 @@ void sig_handler(int signo)
 	else if (signo == SIGUSR2) //Resume Process
 	{
 		printf("Received SIGUSR2\n");
-		kill(pid_P, signo);
-		kill(pid_G, signo);
-		kill(pid_L, signo);
+		kill(pid_P, SIGCONT);
+		kill(pid_G, SIGCONT);
+		kill(pid_L, SIGCONT);
 	}
 	else if (signo == SIGCONT) //Dump Log
 	{
@@ -98,12 +100,12 @@ void sig_handler(int signo)
 
 int main(int argc, char *argv[])
 {
-	char port_N[128]; //Socket port of the next student
-	char port_P[128]; //Socket port of the previous student
+	char port[128];   //Socket port
 	char ip[32];	  //IP address of the next student
+	int wt;			  // Waiting time
 	int rf;			  //Frequency of the sine wave
 
-	readConfFile(ip, port_N, port_P, &rf);
+	readConfFile(ip, port, &wt, &rf);
 
 	int n;			   //Return value
 	struct timeval tv; //Select delay
@@ -114,9 +116,9 @@ int main(int argc, char *argv[])
 	float msg1, msg2, t; //Message from P to L
 
 	argdata[0] = cmd;
-	argdata[1] = port_P;
+	argdata[1] = port;
 	argdata[2] = (char *)myfifo2;
-	argdata[3] = NULL;
+	argdata[3] = rf;
 
 	/*-----------------------------------------Pipes Creation---------------------------------------*/
 
@@ -177,7 +179,8 @@ int main(int argc, char *argv[])
 		int sockfd, portno;
 		struct sockaddr_in serv_addr;
 		struct hostent *server;
-		portno = atoi(port_N);
+		portno = atoi(port);
+		float old_tok, new_tok;
 
 		printf("Hey I'm P and my PID is : %d.\n", getpid());
 
@@ -220,21 +223,23 @@ int main(int argc, char *argv[])
 			{
 
 			case 0:
+			//Either no active pipes or the timeout has expired
 				printf("No data avaiable.\n");
 				break;
 
 			case 1:
+				// If only one pipe is active, check which is between S and G
 				if (FD_ISSET(fd1, &rfds))
 				{
 					n = read(fd1, &line_S, sizeof(line_S));
 					if (n < 0)
-						error("ERROR reading from G");
+						error("ERROR reading from S");
 					printf("From S recivedMsg = %.3f \n", line_S);
 					sleep((int)line_S);
 				}
-
 				else if (FD_ISSET(fd2, &rfds))
 				{
+					// If G, make the computation and log the results through L
 					n = read(fd2, &line_G, sizeof(line_G));
 					if (n < 0)
 						error("ERROR reading from G");
@@ -248,24 +253,31 @@ int main(int argc, char *argv[])
 					n = write(fd3, &line_G, sizeof(line_G));
 					if (n < 0)
 						error("ERROR writing to L");
+					old_tok = line_G;
+					newToken = old_tok + 2 * (1 - pow(old_tok,2)/2 ) * 2 * 3.14 * 1;
+					//line_G += 1; 			////////////////////////////////////////////FORMULA////////////////////////////////////////////////
 
-					line_G += 1;
+					//newToken = line_G;
 
-					newToken = line_G;
-
+					// Send new value to L
 					n = write(fd3, &newToken, sizeof(newToken));
 					if (n < 0)
 						error("ERROR writing to L");
 
-					n = write(sockfd, &line_G, sizeof(line_G));
+					// Write new value to the socket
+					//n = write(sockfd, &line_G, sizeof(line_G));
+					n = write(sockfd, &newToken, sizeof(newToken));
 					if (n < 0)
 						error("ERROR writing to socket");
+					
+					usleep(wt); 	//Simulate communication delay
 				}
 
 				sleep(1);
 				break;
 
 			case 2:
+				// If two active pipes, give priority to S
 				n = read(fd1, &line_S, sizeof(line_S));
 				if (n < 0)
 					error("ERROR reading from S");
@@ -357,16 +369,16 @@ int main(int argc, char *argv[])
 			if (signal(SIGUSR2, sig_handler) == SIG_ERR)
 				printf("Can't catch SIGUSER2\n");
 
-			srand(time(0)); //current time as seed of random number generator
+			//srand(time(0)); //current time as seed of random number generator
 			sleep(5);
 
 			while (1)
 			{
-				t = (rand() % (10 + 1));
+				/* t = (rand() % (10 + 1));
 				n = write(fd1, &t, sizeof(t));
 				if (n < 0)
 					error("ERROR writing to P");
-				sleep(rand() % (10 + 1));
+				sleep(rand() % (10 + 1)); */
 			}
 
 			close(fd1);
