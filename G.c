@@ -17,6 +17,11 @@
 #include <fcntl.h>
 #include <string.h>
 
+typedef struct{
+	timespec time;
+	double token;
+}message;
+
 void error(const char *msg)
 {
      perror(msg);
@@ -29,7 +34,8 @@ int main(int argc, char *argv[])
 
      int sockfd, newsockfd, portno;
      socklen_t clilen;
-     float buffer;
+     //float buffer;
+     message buffer;
      struct sockaddr_in serv_addr, cli_addr;
      int n;
      if (argc < 2)

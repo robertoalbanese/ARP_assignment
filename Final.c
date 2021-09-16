@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <time.h>
+#include <inttypes.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -20,7 +21,13 @@
        __typeof__ (b) _b = (b); \
      _a > _b ? _a : _b; })
 
-float newToken;
+typedef struct{
+	timespec time;
+	double token;
+}msg;
+
+msg message;
+
 char *timeString;
 pid_t pid_S, pid_G, pid_L, pid_P;
 
@@ -59,14 +66,14 @@ void readConfFile(char *ip, char *port, int *wt, int *rf)
 	fclose(fp);
 }
 
-void logFile(pid_t process_id, float message, float token)
+void logFile(pid_t process_id, float msg, float token)
 {
 	FILE *f;
 	f = fopen("logFile.log", "a");
 	time_t currentTime;
 	currentTime = time(NULL);
 	timeString = ctime(&currentTime);
-	fprintf(f, "-%sPID: %d value:%.3f.\n", timeString, process_id, message);
+	fprintf(f, "-%sPID: %d value:%.3f.\n", timeString, process_id, msg);
 	fprintf(f, "-%s%.3f.\n\n", timeString, token);
 
 	fclose(f);
@@ -92,9 +99,9 @@ void sig_handler(int signo)
 	{
 		printf("Received SIGCONT\n");
 		printf("%d\n", pid_S);
-		logFile(pid_S, (float)signo, newToken);
+		logFile(pid_S, (float)signo, message.token);
 		printf("-%sPID: %d value:%s.\n", timeString, pid_S, signame[(int)signo]);
-		printf("-%s%.3f.\n\n", timeString, newToken);
+		printf("-%s%.3f.\n\n", timeString, message.token);
 	}
 }
 
@@ -118,7 +125,7 @@ int main(int argc, char *argv[])
 	argdata[0] = cmd;
 	argdata[1] = port;
 	argdata[2] = (char *)myfifo2;
-	argdata[3] = rf;
+	argdata[3] = NULL;
 
 	/*-----------------------------------------Pipes Creation---------------------------------------*/
 
@@ -168,10 +175,15 @@ int main(int argc, char *argv[])
 
 	if (pid_P == 0)
 	{
-		float line_G = 0; //Recived message from G
+		//float line_G = 0; //Recived message from G
+		msg line_G;
 		float line_S;	  //Recived message from S
 		int retval, fd;
 		fd_set rfds;
+
+		struct timespec time; //current time for DT computation
+		//struct timespec prev_time; //previous time for DT computation
+		double delay_time;
 
 		sleep(2);
 
@@ -243,33 +255,46 @@ int main(int argc, char *argv[])
 					n = read(fd2, &line_G, sizeof(line_G));
 					if (n < 0)
 						error("ERROR reading from G");
+
 					/* if (line_G < -1 || line_G > 1)
 					{
 						printf("Value should be between -1 and 1!.\n");
 						break;
 					} */
-					printf("From G recivedMsg = %.3f \n", line_G);
+
+					printf("From G recivedMsg = %.3f \n", line_G.token);
 
 					n = write(fd3, &line_G, sizeof(line_G));
 					if (n < 0)
 						error("ERROR writing to L");
-					old_tok = line_G;
-					newToken = old_tok + 2 * (1 - pow(old_tok,2)/2 ) * 2 * 3.14 * 1;
-					//line_G += 1; 			////////////////////////////////////////////FORMULA////////////////////////////////////////////////
 
-					//newToken = line_G;
+					// Get the current time 
+					clock_gettime(CLOCK_REALTIME,&time);
+
+					// Compute DT
+					delay_time = (double)(time.tv_sec-message.time.tv_sec) + (double)(time.tv_nsec-message.time.tv_nsec)/(double)1000000000;
+					printf("%f\n",delay_time);
+
+					old_tok = line_G.token;
+					message.token = old_tok + 2 * (1 - pow(old_tok,2)/2 ) * 2 * 3.14 * 1;
+					message.time = time;
+					//line_G += 1; 			////////////////////////////////////////////FORMULA////////////////////////////////////////////////
+					//message.token = line_G;
+
 
 					// Send new value to L
-					n = write(fd3, &newToken, sizeof(newToken));
+					n = write(fd3, &message, sizeof(message));
 					if (n < 0)
 						error("ERROR writing to L");
 
 					// Write new value to the socket
 					//n = write(sockfd, &line_G, sizeof(line_G));
-					n = write(sockfd, &newToken, sizeof(newToken));
+					n = write(sockfd, &message, sizeof(message));
 					if (n < 0)
 						error("ERROR writing to socket");
 					
+					//clock_gettime(CLOCK_REALTIME,&prev_time);
+
 					usleep(wt); 	//Simulate communication delay
 				}
 
@@ -349,7 +374,8 @@ int main(int argc, char *argv[])
 			if (pid_G == 0)
 			{
 				printf("Hey I'm G and my PID is : %d.\n", getpid());
-				execvp(argdata[0], argdata);
+				int a = execvp(argdata[0], argdata);
+				printf("%d",a);
 				error("Exec fallita");
 				return 0;
 			}
