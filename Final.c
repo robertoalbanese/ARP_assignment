@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <time.h>
+#include <sys/time.h>
 #include <inttypes.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -22,7 +23,7 @@
      _a > _b ? _a : _b; })
 
 typedef struct{
-	timespec time;
+	timeval time;
 	double token;
 }msg;
 
@@ -181,7 +182,8 @@ int main(int argc, char *argv[])
 		int retval, fd;
 		fd_set rfds;
 
-		struct timespec time; //current time for DT computation
+		struct timeval current_time;
+		//struct timespec time; //current time for DT computation
 		//struct timespec prev_time; //previous time for DT computation
 		double delay_time;
 
@@ -269,15 +271,17 @@ int main(int argc, char *argv[])
 						error("ERROR writing to L");
 
 					// Get the current time 
-					clock_gettime(CLOCK_REALTIME,&time);
+					//clock_gettime(CLOCK_REALTIME,&time);
+					gettimeofday(&current_time, NULL);
+					printf("current time: %f \n", (double)(current_time.tv_sec + current_time.tv_usec/(double)1000000));
 
 					// Compute DT
-					delay_time = (double)(time.tv_sec-message.time.tv_sec) + (double)(time.tv_nsec-message.time.tv_nsec)/(double)1000000000;
-					printf("%f\n",delay_time);
+					delay_time = (double)(current_time.tv_sec - message.time.tv_sec) + (double)(current_time.tv_usec - message.time.tv_usec)/(double)1000000;
+					printf("differenza: %f\n",delay_time);
 
 					old_tok = line_G.token;
 					message.token = old_tok + 2 * (1 - pow(old_tok,2)/2 ) * 2 * 3.14 * 1;
-					message.time = time;
+					message.time = current_time;
 					//line_G += 1; 			////////////////////////////////////////////FORMULA////////////////////////////////////////////////
 					//message.token = line_G;
 
