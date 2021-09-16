@@ -128,6 +128,8 @@ int main(int argc, char *argv[])
 	argdata[2] = (char *)myfifo2;
 	argdata[3] = NULL;
 
+	int flag = 1; // crescente
+
 	/*-----------------------------------------Pipes Creation---------------------------------------*/
 
 	if (mkfifo(myfifo1, S_IRUSR | S_IWUSR) != 0) //creo file pipe P|S
@@ -264,7 +266,7 @@ int main(int argc, char *argv[])
 						break;
 					} */
 
-					printf("From G recivedMsg = %.3f \n", line_G.token);
+					printf("From G recived token = %.3f \n", line_G.token);
 
 					n = write(fd3, &line_G, sizeof(line_G));
 					if (n < 0)
@@ -276,11 +278,30 @@ int main(int argc, char *argv[])
 					printf("current time: %f \n", (double)(current_time.tv_sec + current_time.tv_usec/(double)1000000));
 
 					// Compute DT
+
 					delay_time = (double)(current_time.tv_sec - message.time.tv_sec) + (double)(current_time.tv_usec - message.time.tv_usec)/(double)1000000;
 					printf("differenza: %f\n",delay_time);
-
+					printf("line_G token %f\n", line_G.token);
 					old_tok = line_G.token;
-					message.token = old_tok + delay_time * (1 - pow(old_tok,2)/2 ) * 2 * 3.14 * rf;
+					//message.token = old_tok + delay_time * (1 - pow(old_tok,2)/2 ) * 2 * 3.14 * rf;
+
+					printf("old tock: %f\n", fabs(old_tok));
+					if (fabs(old_tok) > 1)
+					{
+						flag = 1 - flag;
+					}
+					printf("flag: %d\n", flag);
+					switch(flag)
+						{
+							case 0:
+								message.token = old_tok * cos(2 * 3.14 * rf * delay_time) - sqrt(1 - pow(old_tok,2)/2 ) * sin(2 * 3.14 * rf * delay_time);
+								break;
+							case 1:
+								message.token = old_tok * cos(2 * 3.14 * rf * delay_time) + sqrt(1 - pow(old_tok,2)/2 ) * sin(2 * 3.14 * rf * delay_time);
+								break;
+						}
+
+					
 					message.time = current_time;
 					//line_G += 1; 			////////////////////////////////////////////FORMULA////////////////////////////////////////////////
 					//message.token = line_G;
