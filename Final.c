@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
 					printf("differenza: %f\n",delay_time);
 
 					old_tok = line_G.token;
-					message.token = old_tok + 2 * (1 - pow(old_tok,2)/2 ) * 2 * 3.14 * 1;
+					message.token = old_tok + delay_time * (1 - pow(old_tok,2)/2 ) * 2 * 3.14 * rf;
 					message.time = current_time;
 					//line_G += 1; 			////////////////////////////////////////////FORMULA////////////////////////////////////////////////
 					//message.token = line_G;
