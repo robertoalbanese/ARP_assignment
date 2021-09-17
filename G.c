@@ -18,7 +18,7 @@
 #include <string.h>
 
 typedef struct{
-	timespec time;
+	timeval time;
 	double token;
 }message;
 

@@ -6,17 +6,15 @@ Configuration File:
 4 RF value 
 
 TO DO:
-- IMPLEMENTA CALCOLO NEW TOKEN. (printa i valori della formula in un txt per plottare la sinusoide)
+- implementare: S manda tipo segnale a P tramite pipe
+	- P se dump -> usa la pipe per loggare tramite L
+	- (opzionale) segnale blocca e riattiva P tramite flag
 - Scrivere how to per invio di segnali
+- Aggiustare Log file deve gestire i dati di tipo struct msg e non float
 - Modifica file log: aggiungi il nome del processo oltre al pid (G o S)
-- Aggiungi waiting time come parametro d'esecuzione ed aggiungere delay totale nella formula (usa waiting time come delay di comunicazione in ricezione)
-    P:  riceve il valore da G
-        calcola il nuovo TOKEN
-        invia il messaggio con il nuovo token e con il timestamp
-        applica sleep(waiting_time)
-    Nel giro successivo P terrà conto del delay per il calcolo di DT
+
 
 - !!!! Nel REPORT:    dire che S è il padre di tutti i processi perchè se fosse un figlio, dopo uno stop, non sarebbe più capace di ricevere 
-                    dei segnali di resume.
+                    dei segnali di resume. Se entrambe le pipe sono pine do la priorità ad S
 
 - Controllare i segnali usati nel sig_handler

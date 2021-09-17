@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
 					} */
 
 					printf("From G recived token = %.3f \n", line_G.token);
-
+					// send to L 
 					n = write(fd3, &line_G, sizeof(line_G));
 					if (n < 0)
 						error("ERROR writing to L");
@@ -307,9 +307,13 @@ int main(int argc, char *argv[])
 					//message.token = old_tok + delay_time * (1 - pow(old_tok,2)/2 ) * 2 * 3.14 * rf;
 
 					printf("old tock: %f\n", fabs(old_tok));
-					if (fabs(old_tok) >= 1)
+
+					if (old_tok >= 1)
 					{
-						flag = 1 - flag;
+						flag = 0; 
+					}else if(old_tok <= -1)
+					{
+						flag = 1;
 					}
 					printf("flag: %d\n", flag);
 					switch(flag)
@@ -321,6 +325,7 @@ int main(int argc, char *argv[])
 								message.token = old_tok * cos(2 * 3.14 * rf * delay_time) + sqrt(1 - pow(old_tok,2)/2 ) * sin(2 * 3.14 * rf * delay_time);
 								break;
 						}
+						// save token values on a txt file
 					tokenFile(message.token);
 					
 					message.time = current_time;
