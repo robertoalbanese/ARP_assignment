@@ -24,7 +24,7 @@
 
 typedef struct{
 	timeval time;
-	double token = 0;
+	float token = 0;
 }msg;
 
 msg message;
@@ -32,7 +32,7 @@ msg message;
 char *timeString;
 pid_t pid_S, pid_G, pid_L, pid_P;
 
-char name[30] = "token_";
+char fileTokenName[30] = "token_";
 
 FILE *fp; //Configuration file
 
@@ -69,15 +69,23 @@ void readConfFile(char *ip, char *port, int *wt, int *rf)
 	fclose(fp);
 }
 
-void logFile(pid_t process_id, float msg, float token)
+void logFile(char pName, float token1, float token2)
 {
+
 	FILE *f;
 	f = fopen("logFile.log", "a");
 	time_t currentTime;
 	currentTime = time(NULL);
 	timeString = ctime(&currentTime);
-	fprintf(f, "-%sPID: %d value:%.3f.\n", timeString, process_id, msg);
-	fprintf(f, "-%s%.3f.\n\n", timeString, token);
+	//fprintf(f, "-%sPID: %d value:%.3f.\n", timeString, , token1);
+	
+	if (token1 == SIGCONT)
+	{
+		fprintf(f, "-%s from %c action: dump.\n", timeString, pName);
+	}else{
+		fprintf(f, "-%s from %c value:%.3f.\n", timeString, pName, token1);
+	}
+	fprintf(f, "-%s%.3f.\n\n", timeString, token2);
 
 	fclose(f);
 }
@@ -88,14 +96,14 @@ void tokenFileInit(int rf)
 
 	char rfStr[10];
 	sprintf(rfStr, "%d", rf);
-	strcat(name, rfStr);
-	strcat(name,".txt");
-	tokenFile = fopen(name, "w+");
+	strcat(fileTokenName, rfStr);
+	strcat(fileTokenName,".txt");
+	tokenFile = fopen(fileTokenName, "w+");
 }
 void tokenFile(double token)
 {
 	FILE *tokenFile;
-	tokenFile = fopen(name, "a");
+	tokenFile = fopen(fileTokenName, "a");
 	fprintf(tokenFile, "%f\n",token);
 	fclose(tokenFile);
 }
@@ -120,7 +128,7 @@ void sig_handler(int signo)
 	{
 		printf("Received SIGCONT\n");
 		printf("%d\n", pid_S);
-		logFile(pid_S, (float)signo, message.token);
+		logFile( 'S', (float)signo, message.token);
 		printf("-%sPID: %d value:%s.\n", timeString, pid_S, signame[(int)signo]);
 		printf("-%s%.3f.\n\n", timeString, message.token);
 	}
@@ -135,13 +143,14 @@ int main(int argc, char *argv[])
 
 	readConfFile(ip, port, &wt, &rf);
 
-	int n;			   //Return value
-	struct timeval tv; //Select delay
+	int n;			   //Return value of write and read functions
+	struct timeval tv; //time "Select" delay
 
 	char *argdata[4];  //Process G execution argument
 	char *cmd = "./G"; //Process G executable path
 
-	float msg1, msg2, t; //Message from P to L
+	// DA RISOLVERE DOPPIO MESSSAGGIO
+	msg msg1, msg2; //Message from P to L
 
 	argdata[0] = cmd;
 	argdata[1] = port;
@@ -294,35 +303,30 @@ int main(int argc, char *argv[])
 						error("ERROR writing to L");
 
 					// Get the current time 
-					//clock_gettime(CLOCK_REALTIME,&time);
 					gettimeofday(&current_time, NULL);
 					printf("current time: %f \n", (double)(current_time.tv_sec + current_time.tv_usec/(double)1000000));
 
 					// Compute DT
-
 					delay_time = (double)(current_time.tv_sec - message.time.tv_sec) + (double)(current_time.tv_usec - message.time.tv_usec)/(double)1000000;
-					printf("differenza: %f\n",delay_time);
-					printf("line_G token %f\n", line_G.token);
+
 					old_tok = line_G.token;
 					//message.token = old_tok + delay_time * (1 - pow(old_tok,2)/2 ) * 2 * 3.14 * rf;
 
-					printf("old tock: %f\n", fabs(old_tok));
-
-					if (old_tok >= 1)
-					{
-						flag = 0; 
-					}else if(old_tok <= -1)
-					{
-						flag = 1;
-					}
-					printf("flag: %d\n", flag);
 					switch(flag)
 						{
 							case 0:
 								message.token = old_tok * cos(2 * 3.14 * rf * delay_time) - sqrt(1 - pow(old_tok,2)/2 ) * sin(2 * 3.14 * rf * delay_time);
+								if (message.token < -1){
+									message.token = -1;
+									flag = 1;
+								}
 								break;
 							case 1:
 								message.token = old_tok * cos(2 * 3.14 * rf * delay_time) + sqrt(1 - pow(old_tok,2)/2 ) * sin(2 * 3.14 * rf * delay_time);
+								if (message.token > 1){
+									message.token = 1;
+									flag = 0;
+								}
 								break;
 						}
 						// save token values on a txt file
@@ -403,7 +407,7 @@ int main(int argc, char *argv[])
 				if (n < 0)
 					error("ERROR reciving file from P");
 
-				logFile(getpid(), msg1, msg2);
+				logFile('G', msg1.token, msg2.token);
 			}
 
 			close(fd3);
@@ -448,6 +452,8 @@ int main(int argc, char *argv[])
 
 			//srand(time(0)); //current time as seed of random number generator
 			sleep(5);
+
+			printf("PID G = %d \n PID L = %d", pid_G, pid_L);
 
 			while (1)
 			{
