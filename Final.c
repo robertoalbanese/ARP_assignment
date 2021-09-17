@@ -27,6 +27,12 @@ typedef struct{
 	float token = 0;
 }msg;
 
+typedef struct{
+	char process;
+	float token1;
+	float token2;
+}pipe_msg;
+
 msg message;
 
 char *timeString;
@@ -80,15 +86,29 @@ void logFile(char pName, float token1, float token2)
 	time_t currentTime;
 	currentTime = time(NULL);
 	timeString = ctime(&currentTime);
-	//fprintf(f, "-%sPID: %d value:%.3f.\n", timeString, , token1);
 	
-	if (token1 == SIGCONT)
+	if (pName == 'S')
 	{
-		fprintf(f, "-%s from %c action: dump.\n", timeString, pName);
+		switch ((int)token1)
+		{
+		case 10://SIGUSR1
+			fprintf(f, "\n-%s From %c action: stop.\n", timeString, pName);
+			break;
+		case 12://SIGUSR2
+			fprintf(f, "\n-%s From %c action: start.\n", timeString, pName);
+			break;
+		case 18://SIGCONT
+			fprintf(f, "\n-%s From %c action: dump.\n", timeString, pName);
+			break;
+		default:
+			break;
+		}
+	}else if(pName == 'G'){
+		fprintf(f, "\n-%s From %c value:%.3f.\n", timeString, pName, token1);
+		fprintf(f, "-%s New value:%.3f.\n", timeString, token2);
 	}else{
-		fprintf(f, "-%s from %c value:%.3f.\n", timeString, pName, token1);
+
 	}
-	fprintf(f, "-%s%.3f.\n\n", timeString, token2);
 
 	fclose(f);
 }
@@ -132,10 +152,9 @@ void sig_handler(int signo)
 	else if (signo == SIGCONT) //Dump Log
 	{
 		printf("Received SIGCONT\n");
-		printf("%d\n", pid_S);
-		logFile( 'S', (float)signo, message.token);
-		printf("-%sPID: %d value:%s.\n", timeString, pid_S, signame[(int)signo]);
-		printf("-%s%.3f.\n\n", timeString, message.token);
+		write(fd1, &signo, sizeof(signo));
+		//logFile( 'S', (float)signo, message.token);
+		printf("\n-PID: %d value:%s.\n\n", pid_S, signame[(int)signo]);
 	}
 }
 
@@ -155,7 +174,9 @@ int main(int argc, char *argv[])
 	char *cmd = "./G"; //Process G executable path
 
 	// DA RISOLVERE DOPPIO MESSSAGGIO
-	msg msg1, msg2; //Message from P to L
+	//msg msg1, msg2; //Message from P to L
+	float msg1, msg2; //Message from P to L
+	pipe_msg pipe_message_G,pipe_message_S;
 
 	argdata[0] = cmd;
 	argdata[1] = port;
@@ -285,10 +306,16 @@ int main(int argc, char *argv[])
 					n = read(fd1, &line_S, sizeof(line_S));
 					if (n < 0)
 						error("ERROR reading from S");
-					//if(signame[line_S] == SIGUSR1)
-						//scrivere su pipe L 
 
-						printf("From S recivedMsg = %.3f \n", );
+					printf("From S recivedMsg = %s.\n", signame[line_S]);
+
+					pipe_message_S.process = 'S';
+					pipe_message_S.token1 = line_S;
+					pipe_message_S.token2 = 0;
+
+					n = write(fd3, &pipe_message_S, sizeof(pipe_message_S));
+					if (n < 0)
+						error("ERROR writing to L");		
 
 				}
 				else if (FD_ISSET(fd2, &rfds))
@@ -305,14 +332,17 @@ int main(int argc, char *argv[])
 					} */
 
 					printf("From G recived token = %.3f \n", line_G.token);
-					// send to L 
-					n = write(fd3, &line_G, sizeof(line_G));
+
+					// Creating message to send to L 
+					pipe_message_G.process = 'G';
+					pipe_message_G.token1 = line_G.token;
+
+					/* n = write(fd3, &line_G, sizeof(line_G));
 					if (n < 0)
-						error("ERROR writing to L");
+						error("ERROR writing to L"); */
 
 					// Get the current time 
 					gettimeofday(&current_time, NULL);
-					printf("current time: %f \n", (double)(current_time.tv_sec + current_time.tv_usec/(double)1000000));
 
 					// Compute DT
 					delay_time = (double)(current_time.tv_sec - message.time.tv_sec) + (double)(current_time.tv_usec - message.time.tv_usec)/(double)1000000;
@@ -344,9 +374,10 @@ int main(int argc, char *argv[])
 					//line_G += 1; 			////////////////////////////////////////////FORMULA////////////////////////////////////////////////
 					//message.token = line_G;
 
+					pipe_message_G.token2 = message.token;
 
 					// Send new value to L
-					n = write(fd3, &message, sizeof(message));
+					n = write(fd3, &pipe_message_G, sizeof(pipe_message_G));
 					if (n < 0)
 						error("ERROR writing to L");
 
@@ -367,10 +398,18 @@ int main(int argc, char *argv[])
 			case 2:
 				// If two active pipes, give priority to S
 				n = read(fd1, &line_S, sizeof(line_S));
-				if (n < 0)
-					error("ERROR reading from S");
-				printf("From S recivedMsg = %.3f \n", line_S);
-				sleep((int)line_S);
+					if (n < 0)
+						error("ERROR reading from S");
+
+					printf("From S recivedMsg = %s.\n", signame[line_S]);
+
+					pipe_message_S.process = 'S';
+					pipe_message_S.token1 = line_S;
+					pipe_message_S.token2 = 0;
+
+					n = write(fd3, &pipe_message_S, sizeof(pipe_message_S));
+					if (n < 0)
+						error("ERROR writing to L");	
 				break;
 
 			default:
@@ -404,18 +443,14 @@ int main(int argc, char *argv[])
 		if (pid_L == 0)
 		{
 			printf("Hey I'm L and my PID is : %d.\n", getpid());
-
+			pipe_msg log_msg;
 			while (1)
 			{
-				n = read(fd3, &msg1, sizeof(msg1));
+				n = read(fd3, &log_msg, sizeof(log_msg));
 				if (n < 0)
-					error("ERROR reciving file from P");
+					error("ERROR reciving file");
 
-				n = read(fd3, &msg2, sizeof(msg2));
-				if (n < 0)
-					error("ERROR reciving file from P");
-
-				logFile('G', msg1.token, msg2.token);
+				logFile(log_msg.process, log_msg.token1, log_msg.token2);
 			}
 
 			close(fd3);
@@ -461,15 +496,9 @@ int main(int argc, char *argv[])
 			//srand(time(0)); //current time as seed of random number generator
 			sleep(5);
 
-			printf("PID G = %d \n PID L = %d", pid_G, pid_L);
-
 			while (1)
 			{
-				/* t = (rand() % (10 + 1));
-				n = write(fd1, &t, sizeof(t));
-				if (n < 0)
-					error("ERROR writing to P");
-				sleep(rand() % (10 + 1)); */
+
 			}
 
 			close(fd1);
