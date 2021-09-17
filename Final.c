@@ -42,6 +42,9 @@ const char *myfifo1 = "myfifo1"; //path
 const char *myfifo2 = "myfifo2"; //path
 const char *myfifo3 = "myfifo3"; //path
 
+// pipe fd s
+int fd1, fd2, fd3;
+
 void error(const char *msg)
 {
 	perror(msg);
@@ -113,6 +116,7 @@ void sig_handler(int signo)
 	if (signo == SIGUSR1) //Stop Process
 	{
 		printf("Received SIGUSR1\n");
+		write(fd1, &signo, sizeof(signo));
 		kill(pid_P, SIGSTOP);
 		kill(pid_G, SIGSTOP);
 		kill(pid_L, SIGSTOP);
@@ -123,6 +127,7 @@ void sig_handler(int signo)
 		kill(pid_P, SIGCONT);
 		kill(pid_G, SIGCONT);
 		kill(pid_L, SIGCONT);
+		write(fd1, &signo, sizeof(signo));
 	}
 	else if (signo == SIGCONT) //Dump Log
 	{
@@ -171,7 +176,7 @@ int main(int argc, char *argv[])
 	if (mkfifo(myfifo3, S_IRUSR | S_IWUSR) != 0) //creo file pipe P|L
 		perror("Cannot create fifo 3. Already existing?");
 
-	int fd1 = open(myfifo1, O_RDWR); //apro la pipe1
+	fd1 = open(myfifo1, O_RDWR); //apro la pipe1
 
 	if (fd1 == 0)
 	{	
@@ -179,7 +184,7 @@ int main(int argc, char *argv[])
 		error("Cannot open fifo 1");
 	}
 
-	int fd2 = open(myfifo2, O_RDWR); //apro la pipe2
+	fd2 = open(myfifo2, O_RDWR); //apro la pipe2
 
 	if (fd2 == 0)
 	{	
@@ -187,7 +192,7 @@ int main(int argc, char *argv[])
 		error("Cannot open fifo 2");
 	}
 
-	int fd3 = open(myfifo3, O_RDWR); //apro la pipe3
+	fd3 = open(myfifo3, O_RDWR); //apro la pipe3
 
 	if (fd3 == 0)
 	{	
@@ -210,7 +215,7 @@ int main(int argc, char *argv[])
 	{
 		//float line_G = 0; //Recived message from G
 		msg line_G;
-		float line_S;	  //Recived message from S
+		int line_S;	  //Recived message from S
 		int retval, fd;
 		fd_set rfds;
 
@@ -280,8 +285,11 @@ int main(int argc, char *argv[])
 					n = read(fd1, &line_S, sizeof(line_S));
 					if (n < 0)
 						error("ERROR reading from S");
-					printf("From S recivedMsg = %.3f \n", line_S);
-					sleep((int)line_S);
+					//if(signame[line_S] == SIGUSR1)
+						//scrivere su pipe L 
+
+						printf("From S recivedMsg = %.3f \n", );
+
 				}
 				else if (FD_ISSET(fd2, &rfds))
 				{
