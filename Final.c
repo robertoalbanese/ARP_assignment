@@ -24,13 +24,15 @@
 
 typedef struct{
 	timeval time;
-	double token;
+	double token = 0;
 }msg;
 
 msg message;
 
 char *timeString;
 pid_t pid_S, pid_G, pid_L, pid_P;
+
+char name[30] = "token_";
 
 FILE *fp; //Configuration file
 
@@ -78,6 +80,24 @@ void logFile(pid_t process_id, float msg, float token)
 	fprintf(f, "-%s%.3f.\n\n", timeString, token);
 
 	fclose(f);
+}
+
+void tokenFileInit(int rf)
+{
+ 	FILE *tokenFile;
+
+	char rfStr[10];
+	sprintf(rfStr, "%d", rf);
+	strcat(name, rfStr);
+	strcat(name,".txt");
+	tokenFile = fopen(name, "w+");
+}
+void tokenFile(double token)
+{
+	FILE *tokenFile;
+	tokenFile = fopen(name, "a");
+	fprintf(tokenFile, "%f\n",token);
+	fclose(tokenFile);
 }
 
 void sig_handler(int signo)
@@ -130,6 +150,7 @@ int main(int argc, char *argv[])
 
 	int flag = 1; // crescente
 
+	tokenFileInit(rf);
 	/*-----------------------------------------Pipes Creation---------------------------------------*/
 
 	if (mkfifo(myfifo1, S_IRUSR | S_IWUSR) != 0) //creo file pipe P|S
@@ -286,7 +307,7 @@ int main(int argc, char *argv[])
 					//message.token = old_tok + delay_time * (1 - pow(old_tok,2)/2 ) * 2 * 3.14 * rf;
 
 					printf("old tock: %f\n", fabs(old_tok));
-					if (fabs(old_tok) > 1)
+					if (fabs(old_tok) >= 1)
 					{
 						flag = 1 - flag;
 					}
@@ -300,7 +321,7 @@ int main(int argc, char *argv[])
 								message.token = old_tok * cos(2 * 3.14 * rf * delay_time) + sqrt(1 - pow(old_tok,2)/2 ) * sin(2 * 3.14 * rf * delay_time);
 								break;
 						}
-
+					tokenFile(message.token);
 					
 					message.time = current_time;
 					//line_G += 1; 			////////////////////////////////////////////FORMULA////////////////////////////////////////////////
